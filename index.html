@@ -368,16 +368,15 @@
     }
 
     // ========== FIXED USERNAME INITIALIZATION ==========
-    // Forces a prompt loop so the user must enter a real name.
-    // Prevents silent fallback to "Anonymous" on new browsers
-    // where localStorage is empty or prompt() was previously blocked.
+    // Clears any bad/default stored value, then forces a prompt loop
+    // so the user must enter a real name before proceeding.
     let username = localStorage.getItem("username");
-    if (!username || username.trim() === "" || username === "Anonymous") {
+    if (!username || username.trim() === "" || username.trim() === "Anonymous") {
+      localStorage.removeItem("username"); // wipe the bad value first
       username = "";
       while (!username || username.trim() === "") {
-        username = prompt("Enter your username:") || "";
+        username = (prompt("Enter your username:") || "").trim();
       }
-      username = username.trim();
       localStorage.setItem("username", username);
     }
     // ===================================================
