@@ -275,21 +275,68 @@
       color: black;
     }
 
-    /* ========== ADMIN CONTROLS ========== */
-    #admin-controls {
-      margin-top: 6px;
+    /* ========== ADMIN CORNER WIDGET ========== */
+    #admin-panel {
+      display: none;
+      position: fixed;
+      bottom: 14px;
+      right: 14px;
+      z-index: 500;
+      font-family: monospace;
+    }
+
+    #admin-toggle {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: black;
+      border: 1px solid rgba(0, 255, 0, 0.25);
+      color: rgba(0, 255, 0, 0.25);
+      cursor: pointer;
+      font-size: 0.85em;
+      line-height: 1;
+      transition: border-color 0.2s ease, color 0.2s ease;
+    }
+
+    #admin-toggle:hover {
+      border-color: #0f0;
+      color: #0f0;
+    }
+
+    #admin-panel-body {
+      display: none;
+      position: absolute;
+      bottom: 32px;
+      right: 0;
+      background: black;
+      border: 1px solid #0f0;
+      border-radius: 4px;
+      padding: 8px;
+      min-width: 170px;
+      font-size: 0.85em;
+    }
+
+    #admin-panel-target {
+      margin-bottom: 6px;
+      color: #0f0;
+      opacity: 0.8;
+      word-break: break-all;
+    }
+
+    #admin-panel-body .admin-row {
       display: flex;
       gap: 6px;
     }
 
-    #admin-controls button {
+    #admin-panel-body button {
       font-family: monospace;
-      font-size: 0.85em;
+      font-size: 0.9em;
       background: black;
       border: 1px solid #0f0;
       padding: 3px 8px;
       border-radius: 3px;
       cursor: pointer;
+      flex: 1;
     }
 
     #kick-btn {
@@ -306,7 +353,6 @@
 
     #unban-btn {
       color: #0f0;
-      border-color: #0f0;
     }
 
     #unban-btn:hover {
@@ -342,10 +388,6 @@
     <select id="online-users-dropdown" size="1" aria-label="Online users dropdown">
       <option value="" disabled selected>-- Select User --</option>
     </select>
-    <div id="admin-controls" style="display:none;">
-      <button id="kick-btn" type="button">Kick</button>
-      <button id="unban-btn" type="button">Unban</button>
-    </div>
   </div>
 
   <div id="chat-container">
@@ -360,6 +402,18 @@
     <input type="file" id="imageInput" accept="image/*,video/mp4,audio/mpeg" style="display: none;" />
     <button type="button" id="sendImage">Send Image</button>
   </form>
+
+  <!-- Admin corner widget: only rendered/shown for the configured admin username -->
+  <div id="admin-panel">
+    <div id="admin-panel-body">
+      <div id="admin-panel-target">No user selected</div>
+      <div class="admin-row">
+        <button id="kick-btn" type="button">Kick</button>
+        <button id="unban-btn" type="button">Unban</button>
+      </div>
+    </div>
+    <button id="admin-toggle" type="button" title="Admin">⚙</button>
+  </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
@@ -404,7 +458,10 @@
     const typingIndicator = document.getElementById("typing-indicator");
     const loginOverlay = document.getElementById("crt-login");
     const powerButton = document.getElementById("power-button");
-    const adminControls = document.getElementById("admin-controls");
+    const adminPanel = document.getElementById("admin-panel");
+    const adminToggle = document.getElementById("admin-toggle");
+    const adminPanelBody = document.getElementById("admin-panel-body");
+    const adminPanelTarget = document.getElementById("admin-panel-target");
     const kickBtn = document.getElementById("kick-btn");
     const unbanBtn = document.getElementById("unban-btn");
 
@@ -429,7 +486,7 @@
 
     // ========== ADMIN GATE ==========
     // Change these two values. Only someone who BOTH types this exact
-    // username AND knows this password sees the admin controls.
+    // username AND knows this password can open the admin widget.
     // NOTE: this is client-side only — anyone who views page source can
     // read ADMIN_PASSWORD. For real security, use Firebase Authentication
     // + Security Rules instead of this constant.
@@ -437,13 +494,26 @@
     const ADMIN_PASSWORD = "Boston24@2";
 
     let isAdmin = false;
+    let adminAuthenticated = false;
+
+    // The corner icon itself only exists in the DOM's visible flow for the
+    // matching username — everyone else never sees any trace of it.
     if (username === ADMIN_USERNAME) {
-      const pw = prompt("Admin password:") || "";
-      isAdmin = pw === ADMIN_PASSWORD;
+      adminPanel.style.display = "block";
     }
-    if (isAdmin) {
-      adminControls.style.display = "flex";
-    }
+
+    adminToggle.addEventListener("click", () => {
+      if (!adminAuthenticated) {
+        const pw = prompt("Admin password:") || "";
+        if (pw !== ADMIN_PASSWORD) {
+          alert("Incorrect password.");
+          return;
+        }
+        adminAuthenticated = true;
+        isAdmin = true;
+      }
+      adminPanelBody.style.display = adminPanelBody.style.display === "block" ? "none" : "block";
+    });
     // =================================
 
     let currentChannel = localStorage.getItem("channel") || "general";
@@ -783,6 +853,7 @@
     userDropdown.addEventListener("change", () => {
       selectedUser = userDropdown.value || null;
       highlightSelectedUserMessages();
+      adminPanelTarget.textContent = selectedUser ? `Target: ${selectedUser}` : "No user selected";
     });
 
     function highlightSelectedUserMessages() {
