@@ -274,6 +274,45 @@
       background: #0f0;
       color: black;
     }
+
+    /* ========== ADMIN CONTROLS ========== */
+    #admin-controls {
+      margin-top: 6px;
+      display: flex;
+      gap: 6px;
+    }
+
+    #admin-controls button {
+      font-family: monospace;
+      font-size: 0.85em;
+      background: black;
+      border: 1px solid #0f0;
+      padding: 3px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    #kick-btn {
+      color: #f00;
+      border-color: #f00;
+      text-shadow: 0 0 5px #f00;
+    }
+
+    #kick-btn:hover {
+      background: #f00;
+      color: black;
+      text-shadow: none;
+    }
+
+    #unban-btn {
+      color: #0f0;
+      border-color: #0f0;
+    }
+
+    #unban-btn:hover {
+      background: #0f0;
+      color: black;
+    }
   </style>
 </head>
 <body>
@@ -303,6 +342,10 @@
     <select id="online-users-dropdown" size="1" aria-label="Online users dropdown">
       <option value="" disabled selected>-- Select User --</option>
     </select>
+    <div id="admin-controls" style="display:none;">
+      <button id="kick-btn" type="button">Kick</button>
+      <button id="unban-btn" type="button">Unban</button>
+    </div>
   </div>
 
   <div id="chat-container">
@@ -361,6 +404,9 @@
     const typingIndicator = document.getElementById("typing-indicator");
     const loginOverlay = document.getElementById("crt-login");
     const powerButton = document.getElementById("power-button");
+    const adminControls = document.getElementById("admin-controls");
+    const kickBtn = document.getElementById("kick-btn");
+    const unbanBtn = document.getElementById("unban-btn");
 
     // Username & channel state
     function sanitizeUsername(name) {
@@ -380,6 +426,25 @@
       localStorage.setItem("username", username);
     }
     // ===================================================
+
+    // ========== ADMIN GATE ==========
+    // Change these two values. Only someone who BOTH types this exact
+    // username AND knows this password sees the admin controls.
+    // NOTE: this is client-side only — anyone who views page source can
+    // read ADMIN_PASSWORD. For real security, use Firebase Authentication
+    // + Security Rules instead of this constant.
+    const ADMIN_USERNAME = "FrontRunnahz";
+    const ADMIN_PASSWORD = "Boston24@2";
+
+    let isAdmin = false;
+    if (username === ADMIN_USERNAME) {
+      const pw = prompt("Admin password:") || "";
+      isAdmin = pw === ADMIN_PASSWORD;
+    }
+    if (isAdmin) {
+      adminControls.style.display = "flex";
+    }
+    // =================================
 
     let currentChannel = localStorage.getItem("channel") || "general";
     channelSelect.value = currentChannel;
@@ -401,8 +466,15 @@
       }
     });
 
+    const connectionKeyMap = new Map(); // connectionKey -> username
+
     onValue(connectionsRef, (snapshot) => {
       const connections = snapshot.val() || {};
+      connectionKeyMap.clear();
+      Object.entries(connections).forEach(([key, user]) => {
+        connectionKeyMap.set(key, user);
+      });
+
       const seen = new Set();
       const usernames = Object.values(connections).filter(user => {
         return typeof user === 'string' && user.trim() !== '' && !seen.has(user) && seen.add(user);
@@ -424,6 +496,76 @@
     window.addEventListener("beforeunload", () => {
       if (userRef) remove(userRef);
     });
+
+    // ========== KICK / BAN SYSTEM ==========
+    function removeUserConnections(targetUsername) {
+      connectionKeyMap.forEach((user, key) => {
+        if (user === targetUsername) {
+          remove(ref(db, `connections/${key}`)).catch(() => {});
+        }
+      });
+    }
+
+    function kickUser(targetUsername) {
+      const safe = sanitizeUsername(targetUsername);
+      set(ref(db, `banned/${safe}`), true).catch(() => {});
+      removeUserConnections(targetUsername);
+    }
+
+    function unbanUser(targetUsername) {
+      const safe = sanitizeUsername(targetUsername);
+      remove(ref(db, `banned/${safe}`)).catch(() => {});
+    }
+
+    kickBtn.addEventListener("click", () => {
+      if (!isAdmin) return;
+      if (!selectedUser) {
+        alert("Select a user from the dropdown first.");
+        return;
+      }
+      if (selectedUser === username) {
+        alert("You can't kick yourself.");
+        return;
+      }
+      if (confirm(`Kick ${selectedUser} from the chat?`)) {
+        kickUser(selectedUser);
+      }
+    });
+
+    unbanBtn.addEventListener("click", () => {
+      if (!isAdmin) return;
+      if (!selectedUser) {
+        alert("Select a user from the dropdown first.");
+        return;
+      }
+      unbanUser(selectedUser);
+      alert(`${selectedUser} has been unbanned.`);
+    });
+
+    // Every client watches its own ban status. If it flips to true,
+    // the client is forced out immediately, even mid-session.
+    let kickedHandled = false;
+    function handleKicked() {
+      if (kickedHandled) return;
+      kickedHandled = true;
+      if (myConnectionRef) remove(myConnectionRef).catch(() => {});
+      document.body.innerHTML = `
+        <div style="position:fixed;top:0;left:0;width:100%;height:100%;
+          background:black;color:#f00;display:flex;flex-direction:column;
+          align-items:center;justify-content:center;font-family:monospace;
+          text-align:center;padding:20px;">
+          <h1 style="text-shadow:0 0 10px #f00,0 0 20px #f00;">CONNECTION TERMINATED</h1>
+          <p>You have been removed from The Underground.</p>
+        </div>
+      `;
+    }
+
+    onValue(ref(db, `banned/${sanitizeUsername(username)}`), (snap) => {
+      if (snap.val() === true) {
+        handleKicked();
+      }
+    });
+    // ========================================
 
     changeUsernameBtn.addEventListener("click", () => {
       let newName = "";
