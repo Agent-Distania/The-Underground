@@ -472,7 +472,9 @@
       const m = date.getMinutes().toString().padStart(2, "0");
       const ampm = h >= 12 ? "PM" : "AM";
       const hour12 = (h % 12) || 12;
-      return `${hour12}:${m} ${ampm}`;
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const dateStr = `${monthNames[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+      return `${dateStr} ${hour12}:${m} ${ampm}`;
     }
 
     function createMessageElement(key, val) {
