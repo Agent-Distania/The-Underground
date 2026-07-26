@@ -645,7 +645,6 @@
       }
       newName = (newName || "").trim();
       if (newName && newName !== username) {
-        remove(userRef).catch(() => {});
         username = newName;
         localStorage.setItem("username", username);
         setUserPresence(username);
